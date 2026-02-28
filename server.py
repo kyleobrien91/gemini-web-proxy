@@ -423,7 +423,13 @@ async def send_to_gemini(page: Page, text: str, timeout: Optional[int] = None) -
     
     await input_div.click()
     await asyncio.sleep(0.1)
-    await page.keyboard.press('Control+a')
+
+    # Use platform-aware selection approach
+    if sys.platform == "darwin":
+        await page.keyboard.press('Meta+A')
+    else:
+        await page.keyboard.press('Control+a')
+
     await page.keyboard.press('Backspace')
     await asyncio.sleep(0.1)
     
