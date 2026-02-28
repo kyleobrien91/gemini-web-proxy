@@ -24,6 +24,7 @@ GEMINI_PROXY_HEADLESS = os.getenv("GEMINI_PROXY_HEADLESS", "virtual")
 GEMINI_PROXY_OS = os.getenv("GEMINI_PROXY_OS", "linux")
 GEMINI_PROXY_HUMANIZE = os.getenv("GEMINI_PROXY_HUMANIZE", "true").lower() == "true"
 GEMINI_PROXY_PROFILE_DIR = os.getenv("GEMINI_PROXY_PROFILE_DIR", str(Path.home() / ".gemini-service" / "firefox-profile"))
+GEMINI_PROXY_PORT = int(os.getenv("GEMINI_PROXY_PORT", 8080))
 SERVICE_DIR = Path.home() / ".gemini-service"
 PROFILE_DIR = Path(GEMINI_PROXY_PROFILE_DIR)
 LOGIN_FLAG = SERVICE_DIR / "logged-in"
@@ -167,7 +168,7 @@ async def init_browser():
     await page.close()
     is_ready = True
     print("✅ Service ready!")
-    print(f"🎯 API: http://localhost:{os.getenv('GEMINI_PROXY_PORT', 8080)}/v1/chat/completions\n")
+    print(f"🎯 API: http://localhost:{GEMINI_PROXY_PORT}/v1/chat/completions\n")
 
 
 async def get_or_create_session_page(session_id: str, start_new_chat: bool = False) -> Page:
