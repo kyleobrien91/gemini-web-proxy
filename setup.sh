@@ -17,8 +17,8 @@ echo "Installing Python dependencies..."
 pip3 install -r requirements.txt
 
 # Install Playwright browsers
-echo "Installing Playwright browsers..."
-playwright install chromium
+echo "Installing Camoufox browser..."
+python3 -m camoufox fetch
 
 echo ""
 echo "Setup complete!"
