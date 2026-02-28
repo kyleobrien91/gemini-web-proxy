@@ -39,6 +39,7 @@ ENV/
 # Chrome/Browser data
 .chrome-session/
 chrome-profile/
+firefox-profile/
 
 # Service data
 .gemini-service/

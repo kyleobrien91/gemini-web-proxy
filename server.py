@@ -6,20 +6,33 @@ import json
 import asyncio
 import time
 import re
+import os
+import sys
+import logging
 from pathlib import Path
-from playwright.async_api import async_playwright, BrowserContext, Page
+from camoufox.async_api import AsyncCamoufox
+from playwright.async_api import BrowserContext, Page
 from markdownify import markdownify as md
 
 app = FastAPI()
 
-# Service profile
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+logger = logging.getLogger(__name__)
+
+# Configuration
+GEMINI_PROXY_HEADLESS = os.getenv("GEMINI_PROXY_HEADLESS", "virtual")
+GEMINI_PROXY_OS = os.getenv("GEMINI_PROXY_OS", "linux")
+GEMINI_PROXY_HUMANIZE = os.getenv("GEMINI_PROXY_HUMANIZE", "true").lower() == "true"
+GEMINI_PROXY_PROFILE_DIR = os.getenv("GEMINI_PROXY_PROFILE_DIR", str(Path.home() / ".gemini-service" / "firefox-profile"))
+GEMINI_PROXY_PORT = int(os.getenv("GEMINI_PROXY_PORT", 8080))
 SERVICE_DIR = Path.home() / ".gemini-service"
-PROFILE_DIR = SERVICE_DIR / "chrome-profile"
+PROFILE_DIR = Path(GEMINI_PROXY_PROFILE_DIR)
 LOGIN_FLAG = SERVICE_DIR / "logged-in"
+CHROME_PROFILE_DIR = SERVICE_DIR / "chrome-profile"
 
 # Global state
 context: BrowserContext = None
-playwright_instance = None
+camoufox_instance: AsyncCamoufox = None
 is_ready = False
 session_pages: Dict[str, Page] = {}
 page_locks: Dict[str, asyncio.Lock] = {}
@@ -80,9 +93,17 @@ async def check_logged_in(page: Page) -> bool:
 
 
 async def init_browser():
-    global context, playwright_instance, is_ready
+    global context, camoufox_instance, is_ready
     
     SERVICE_DIR.mkdir(parents=True, exist_ok=True)
+
+    # Profile migration
+    if CHROME_PROFILE_DIR.exists() and not PROFILE_DIR.exists():
+        logger.warning(
+            "Chrome profile detected. Camoufox uses Firefox — you will need to re-authenticate."
+        )
+        LOGIN_FLAG.unlink(missing_ok=True)
+
     PROFILE_DIR.mkdir(parents=True, exist_ok=True)
     
     first_time = not LOGIN_FLAG.exists()
@@ -94,22 +115,30 @@ async def init_browser():
     else:
         print("🚀 Starting service...")
     
-    playwright_instance = await async_playwright().start()
+    # Determine headless mode
+    if first_time:
+        headless = False
+    elif GEMINI_PROXY_HEADLESS.lower() == "true":
+        headless = True
+    elif GEMINI_PROXY_HEADLESS.lower() == "false":
+        headless = False
+    else:
+        # Default to virtual (Xvfb) on Linux, else True
+        headless = "virtual" if sys.platform.startswith("linux") else True
     
-    headless_args = [] if first_time else ["--headless=new"]
-    
-    context = await playwright_instance.chromium.launch_persistent_context(
+    # Launch Camoufox with persistent context
+    camoufox_instance = AsyncCamoufox(
+        persistent_context=True,
         user_data_dir=str(PROFILE_DIR),
-        headless=False,
-        channel="chrome",
-        args=[
-            "--disable-blink-features=AutomationControlled",
-            "--disable-extensions",
-            *headless_args
-        ],
-        viewport={"width": 1280, "height": 900},
+        headless=headless,
+        humanize=GEMINI_PROXY_HUMANIZE,
+        os=GEMINI_PROXY_OS,
+        enable_cache=True,
+        main_world_eval=True,
     )
     
+    context = await camoufox_instance.__aenter__()
+
     page = await context.new_page()
     await page.goto("https://gemini.google.com/app")
     
@@ -122,8 +151,7 @@ async def init_browser():
                 LOGIN_FLAG.write_text("ok")
                 print("\n✅ Login saved! Restarting in headless mode...\n")
                 await page.close()
-                await context.close()
-                await playwright_instance.stop()
+                await camoufox_instance.__aexit__(None, None, None)
                 return await init_browser()
             await asyncio.sleep(2)
             if i % 15 == 0 and i > 0:
@@ -140,7 +168,7 @@ async def init_browser():
     await page.close()
     is_ready = True
     print("✅ Service ready!")
-    print("🎯 API: http://localhost:8080/v1/chat/completions\n")
+    print(f"🎯 API: http://localhost:{GEMINI_PROXY_PORT}/v1/chat/completions\n")
 
 
 async def get_or_create_session_page(session_id: str, start_new_chat: bool = False) -> Page:
@@ -396,7 +424,13 @@ async def send_to_gemini(page: Page, text: str, timeout: Optional[int] = None) -
     
     await input_div.click()
     await asyncio.sleep(0.1)
-    await page.keyboard.press('Meta+A')
+
+    # Use platform-aware selection approach
+    if sys.platform == "darwin":
+        await page.keyboard.press('Meta+A')
+    else:
+        await page.keyboard.press('Control+a')
+
     await page.keyboard.press('Backspace')
     await asyncio.sleep(0.1)
     
@@ -875,13 +909,11 @@ async def startup():
 
 @app.on_event("shutdown")
 async def shutdown():
-    global context, playwright_instance
+    global context, camoufox_instance
     for page in session_pages.values():
         try:
             await page.close()
         except:
             pass
-    if context:
-        await context.close()
-    if playwright_instance:
-        await playwright_instance.stop()
+    if camoufox_instance:
+        await camoufox_instance.__aexit__(None, None, None)
