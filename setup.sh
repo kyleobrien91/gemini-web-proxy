@@ -4,8 +4,7 @@ echo "Setting up Gemini Web Proxy for OpenCode..."
 echo "=========================================="
 
 # Check Python version
-python_version=$(python3 --version 2>&1 | grep -o '[0-9]\+\.[0-9]\+')
-if [[ $(echo "$python_version >= 3.8" | bc -l) -eq 0 ]]; then
+if ! python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3, 8) else 1)'; then
     echo "Error: Python 3.8 or higher is required"
     exit 1
 fi
