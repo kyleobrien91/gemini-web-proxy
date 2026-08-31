@@ -34,6 +34,8 @@ A free Gemini web interface proxy that works as an OpenAI-compatible API for Ope
 ```bash
 git clone <repository-url>
 cd gemini-web-proxy
+python3 -m venv venv
+source venv/bin/activate
 chmod +x setup.sh
 ./setup.sh
 ```
@@ -47,7 +49,14 @@ git clone <repository-url>
 cd gemini-web-proxy
 ```
 
-### Step 2: Install Dependencies
+### Step 2: Create a Virtual Environment
+
+```bash
+python3 -m venv venv
+source venv/bin/activate
+```
+
+### Step 3: Install Dependencies
 
 ```bash
 # Install Python dependencies
@@ -57,7 +66,7 @@ pip install -r requirements.txt
 playwright install chromium
 ```
 
-### Step 3: First Run and Login
+### Step 4: First Run and Login
 
 ```bash
 python run.py
@@ -70,7 +79,7 @@ On first run:
 4. Wait for "Login saved" message
 5. Browser will restart in headless mode
 
-### Step 4: Configure OpenCode
+### Step 5: Configure OpenCode
 
 Add this configuration to your OpenCode config file:
 
